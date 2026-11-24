@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メシエ・NGCカタログ天体識別クイズ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-2xl mx-auto p-4">
+  <h1 class="text-2xl font-bold text-center text-purple-300 mb-1">🔭 メシエ天体クイズ</h1>
+  <p class="text-center text-slate-500 mb-4 text-sm">天体の説明・特徴を見て名前と種別を答えよう</p>
+
+  <!-- Filter -->
+  <div class="flex gap-2 mb-4 justify-center flex-wrap">
+    <button onclick="setFilter('all')" id="f-all" class="px-3 py-1 rounded bg-purple-900 text-purple-200 text-xs font-semibold" aria-label="全種別">全種別</button>
+    <button onclick="setFilter('galaxy')" id="f-galaxy" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="銀河">🌌 銀河</button>
+    <button onclick="setFilter('nebula')" id="f-nebula" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="星雲">💫 星雲</button>
+    <button onclick="setFilter('cluster')" id="f-cluster" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="星団">✨ 星団</button>
+  </div>
+
+  <!-- Score -->
+  <div class="flex justify-center gap-4 mb-4 text-sm">
+    <span class="text-green-400">正解: <span id="correct-count" class="font-bold">0</span></span>
+    <span class="text-red-400">不正解: <span id="wrong-count" class="font-bold">0</span></span>
+    <span class="text-yellow-400">問題数: <span id="total-count" class="font-bold">0</span></span>
+  </div>
+
+  <!-- Quiz card -->
+  <div class="bg-slate-900 rounded-2xl p-4 mb-4">
+    <!-- Object canvas -->
+    <div class="flex justify-center mb-3">
+      <canvas id="obj-canvas" width="260" height="180" class="rounded-xl"></canvas>
+    </div>
+    <!-- Description -->
+    <div id="obj-desc" class="text-center text-sm text-slate-300 mb-1 min-h-10 px-2"></div>
+    <!-- Hint -->
+    <div id="hint-area" class="text-center text-xs text-slate-500 mb-3 min-h-4"></div>
+    <!-- Choices -->
+    <div id="choices" class="grid grid-cols-2 gap-2 mb-3"></div>
+    <!-- Feedback -->
+    <div id="feedback" class="text-center text-sm font-semibold mb-2 min-h-5"></div>
+    <!-- Detail card (shown after answer) -->
+    <div id="detail-card" class="hidden bg-slate-800 rounded-xl p-3 text-xs text-slate-300 space-y-1 mb-2"></div>
+    <button onclick="nextQuestion()" id="next-btn" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm hidden" aria-label="次の問題">次の問題 →</button>
+  </div>
+</div>
+
+<script>
+const objects = [
+  { id:'M1',  name:'かに星雲',      en:'Crab Nebula',         type:'nebula',  const:'おうし座',
+    dist:6500, size:'7×5光年', finder:'ベイス (1731)',
+    desc:'1054年の超新星爆発の残骸。中心にパルサーを持つ。',
+    color:'#f97316', shape:'crab' },
+  { id:'M13', name:'ヘルクレス球状星団', en:'Hercules Globular Cluster', type:'cluster', const:'ヘルクレス座',
+    dist:25100, size:'145光年', finder:'ハレー (1714)',
+    desc:'北天最大の球状星団。約30万個の星からなる。',
+    color:'#fbbf24', shape:'globular' },
+  { id:'M31', name:'アンドロメダ銀河', en:'Andromeda Galaxy',   type:'galaxy',  const:'アンドロメダ座',
+    dist:254, size:'22万光年', finder:'スーフィー (964)',
+    desc:'肉眼で見える最遠の天体（約254万光年）。天の川銀河の姉妹銀河。',
+    color:'#c4b5fd', shape:'elliptical' },
+  { id:'M42', name:'オリオン大星雲',   en:'Orion Nebula',        type:'nebula',  const:'オリオン座',
+    dist:1344, size:'24光年', finder:'マイラン (1610)',
+    desc:'冬の代表的な散光星雲。肉眼でも見え、内部で星が生まれている。',
+    color:'#60a5fa', shape:'diffuse' },
+  { id:'M45', name:'プレアデス星団',   en:'Pleiades',            type:'cluster', const:'おうし座',
+    dist:444, size:'43光年', finder:'先史時代',
+    desc:'和名「すばる」。肉眼で6〜7個の星が見える散開星団。',
+    color:'#93c5fd', shape:'open' },
+  { id:'M51', name:'子持ち銀河',       en:'Whirlpool Galaxy',    type:'galaxy',  const:'りょうけん座',
+    dist:2300, size:'7万6千光年', finder:'メシエ (1773)',
+    desc:'渦巻き構造が明瞭。伴銀河NGC 5195との相互作用で有名。',
+    color:'#c4b5fd', shape:'spiral' },
+  { id:'M57', name:'リング星雲',       en:'Ring Nebula',         type:'nebula',  const:'こと座',
+    dist:2300, size:'1光年', finder:'メシエ (1779)',
+    desc:'白色矮星を中心に広がるドーナツ状の惑星状星雲。',
+    color:'#34d399', shape:'ring' },
+  { id:'M87', name:'おとめ座銀河団中心銀河', en:'Virgo A',      type:'galaxy',  const:'おとめ座',
+    dist:16400, size:'12万光年', finder:'メシエ (1781)',
+    desc:'2019年に人類初のブラックホール撮影に成功した銀河。巨大ジェットも有名。',
+    color:'#f9a8d4', shape:'elliptical' },
+  { id:'M104', name:'ソンブレロ銀河',  en:'Sombrero Galaxy',     type:'galaxy',  const:'おとめ座',
+    dist:9500, size:'5万光年', finder:'メシエ (1781)',
+    desc:'暗黒帯が特徴的な縁がち銀河。メキシコ帽に似た形状。',
+    color:'#c4b5fd', shape:'sombrero' },
+  { id:'M27', name:'亜鈴状星雲',       en:'Dumbbell Nebula',     type:'nebula',  const:'こぎつね座',
+    dist:1360, size:'2.5光年', finder:'メシエ (1764)',
+    desc:'最初に発見された惑星状星雲。亜鈴（ダンベル）型の形状。',
+    color:'#6ee7b7', shape:'dumbbell' },
+  { id:'M44', name:'プレセペ星団',     en:'Beehive Cluster',     type:'cluster', const:'かに座',
+    dist:577, size:'22光年', finder:'先史時代',
+    desc:'和名「鬼宿」。蜂の巣状に広がる散開星団。',
+    color:'#fde68a', shape:'open' },
+  { id:'M64', name:'ブラックアイ銀河', en:'Black Eye Galaxy',    type:'galaxy',  const:'かみのけ座',
+    dist:1700, size:'5万5千光年', finder:'ボーデ (1779)',
+    desc:'中心部に暗い塵の帯（ブラックアイ）を持つ渦巻き銀河。',
+    color:'#a78bfa', shape:'spiral' },
+  { id:'M8',  name:'干潟星雲',         en:'Lagoon Nebula',       type:'nebula',  const:'いて座',
+    dist:4100, size:'110光年', finder:'フラムスティード (1680)',
+    desc:'夏の天の川に輝く大型散光星雲。肉眼でも見える。',
+    color:'#f87171', shape:'diffuse' },
+  { id:'M11', name:'野鴨星団',         en:'Wild Duck Cluster',   type:'cluster', const:'たて座',
+    dist:6200, size:'20光年', finder:'キルヒ (1681)',
+    desc:'野鴨の群れが飛ぶように見える密集した散開星団。',
+    color:'#fcd34d', shape:'open' },
+  { id:'M32', name:'M32',              en:'M32',                 type:'galaxy',  const:'アンドロメダ座',
+    dist:265, size:'8千光年', finder:'ル・ジャンティ (1749)',
+    desc:'アンドロメダ銀河の矮小楕円銀河の伴銀河。',
+    color:'#d8b4fe', shape:'elliptical' },
+  { id:'M20', name:'三裂星雲',         en:'Trifid Nebula',       type:'nebula',  const:'いて座',
+    dist:5200, size:'28光年', finder:'メシエ (1764)',
+    desc:'暗黒星雲が3方向に走るため「三裂」の名を持つ散光星雲。',
+    color:'#f9a8d4', shape:'diffuse' },
+];
+
+let deck = [...objects];
+let current = null, answered = false;
+let correct = 0, wrong = 0, total = 0;
+
+function setFilter(f) {
+  ['all','galaxy','nebula','cluster'].forEach(id => {
+    const btn = document.getElementById('f-' + id);
+    if (!btn) return;
+    btn.className = id===f
+      ? 'px-3 py-1 rounded bg-purple-900 text-purple-200 text-xs font-semibold'
+      : 'px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs';
+  });
+  deck = f==='all' ? [...objects] : objects.filter(o => o.type===f);
+  nextQuestion();
+}
+
+function drawObject(obj, canvas) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#030712'; ctx.fillRect(0,0,W,H);
+
+  // Background stars
+  for(let i=0;i<120;i++){
+    const x=Math.random()*W, y=Math.random()*H;
+    const a=0.05+Math.random()*0.3;
+    ctx.fillStyle=`rgba(255,255,255,${a})`;
+    ctx.beginPath(); ctx.arc(x,y,Math.random()*1.2,0,2*Math.PI); ctx.fill();
+  }
+
+  const cx=W/2, cy=H/2;
+  const shape = obj.shape;
+
+  if(shape==='spiral' || shape==='sombrero'){
+    // Spiral galaxy
+    const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,70);
+    grad.addColorStop(0,'rgba(255,255,240,0.9)');
+    grad.addColorStop(0.2,obj.color+'cc');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,70,0,2*Math.PI); ctx.fill();
+    // Arms
+    for(let arm=0;arm<2;arm++){
+      ctx.strokeStyle=obj.color+'88'; ctx.lineWidth=4;
+      ctx.beginPath();
+      for(let t=0;t<4*Math.PI;t+=0.05){
+        const r=8+t*7, a=t+arm*Math.PI;
+        const x=cx+r*Math.cos(a)*0.9, y=cy+r*Math.sin(a)*0.4;
+        t===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    if(shape==='sombrero'){
+      // Dark lane
+      ctx.fillStyle='#030712cc';
+      ctx.beginPath(); ctx.ellipse(cx,cy+5,65,8,0,0,2*Math.PI); ctx.fill();
+    }
+  } else if(shape==='elliptical'){
+    const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,55);
+    grad.addColorStop(0,'rgba(255,255,240,0.9)');
+    grad.addColorStop(0.3,obj.color+'bb');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.ellipse(cx,cy,55,38,0,0,2*Math.PI); ctx.fill();
+  } else if(shape==='ring'){
+    // Ring nebula
+    const grad=ctx.createRadialGradient(cx,cy,22,cx,cy,55);
+    grad.addColorStop(0,'transparent');
+    grad.addColorStop(0.3,obj.color+'cc');
+    grad.addColorStop(0.7,obj.color+'66');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,55,0,2*Math.PI); ctx.fill();
+    // Central star
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx,cy,3,0,2*Math.PI); ctx.fill();
+  } else if(shape==='crab'){
+    // Crab nebula - irregular
+    ctx.fillStyle=obj.color+'55'; ctx.beginPath(); ctx.ellipse(cx,cy,60,45,0.3,0,2*Math.PI); ctx.fill();
+    for(let i=0;i<8;i++){
+      const a=i*Math.PI/4, r=55+Math.random()*20;
+      ctx.strokeStyle=obj.color+'88'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(cx,cy);
+      ctx.lineTo(cx+r*Math.cos(a), cy+r*Math.sin(a)*0.7); ctx.stroke();
+    }
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx,cy,4,0,2*Math.PI); ctx.fill();
+  } else if(shape==='diffuse'){
+    // Diffuse nebula
+    for(let i=0;i<5;i++){
+      const nx=cx+(Math.random()-0.5)*60, ny=cy+(Math.random()-0.5)*40;
+      const nr=20+Math.random()*30;
+      const g=ctx.createRadialGradient(nx,ny,0,nx,ny,nr);
+      g.addColorStop(0,obj.color+'66'); g.addColorStop(1,'transparent');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(nx,ny,nr,0,2*Math.PI); ctx.fill();
+    }
+  } else if(shape==='dumbbell'){
+    // Dumbbell nebula
+    const g1=ctx.createRadialGradient(cx-20,cy,0,cx-20,cy,38);
+    g1.addColorStop(0,obj.color+'cc'); g1.addColorStop(1,'transparent');
+    ctx.fillStyle=g1; ctx.beginPath(); ctx.arc(cx-20,cy,38,0,2*Math.PI); ctx.fill();
+    const g2=ctx.createRadialGradient(cx+20,cy,0,cx+20,cy,38);
+    g2.addColorStop(0,obj.color+'cc'); g2.addColorStop(1,'transparent');
+    ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(cx+20,cy,38,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx,cy,3,0,2*Math.PI); ctx.fill();
+  } else if(shape==='globular'){
+    // Globular cluster
+    const grad=ctx.createRadialGradient(cx,cy,0,cx,cy,65);
+    grad.addColorStop(0,'rgba(255,255,200,0.95)');
+    grad.addColorStop(0.3,obj.color+'bb');
+    grad.addColorStop(0.7,obj.color+'44');
+    grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(cx,cy,65,0,2*Math.PI); ctx.fill();
+    for(let i=0;i<80;i++){
+      const r=Math.random()*60, a=Math.random()*2*Math.PI;
+      ctx.fillStyle='rgba(255,255,200,0.8)';
+      ctx.beginPath(); ctx.arc(cx+r*Math.cos(a),cy+r*Math.sin(a)*0.7,0.8,0,2*Math.PI); ctx.fill();
+    }
+  } else if(shape==='open'){
+    // Open cluster
+    for(let i=0;i<30;i++){
+      const r=15+Math.random()*55, a=Math.random()*2*Math.PI;
+      const s=1+Math.random()*2.5;
+      ctx.fillStyle=`rgba(255,255,${200+Math.floor(Math.random()*55)},${0.5+Math.random()*0.5})`;
+      ctx.beginPath(); ctx.arc(cx+r*Math.cos(a),cy+r*Math.sin(a),s,0,2*Math.PI); ctx.fill();
+    }
+  }
+
+  // Label (catalog number)
+  ctx.fillStyle='rgba(255,255,255,0.3)'; ctx.font='bold 14px monospace'; ctx.textAlign='left';
+  ctx.fillText(obj.id, 8, 20);
+}
+
+function typeLabel(type) {
+  return type==='galaxy'?'🌌 銀河': type==='nebula'?'💫 星雲':'✨ 星団';
+}
+
+function getWrongChoices(current) {
+  return deck.filter(o=>o.id!==current.id).sort(()=>Math.random()-0.5).slice(0,3);
+}
+
+function nextQuestion() {
+  if(!deck.length){
+    document.getElementById('choices').innerHTML='<div class="col-span-2 text-center text-slate-400">このカテゴリに問題がありません</div>';
+    return;
+  }
+  current = deck[Math.floor(Math.random()*deck.length)];
+  answered = false;
+  document.getElementById('feedback').textContent='';
+  document.getElementById('hint-area').textContent='';
+  document.getElementById('detail-card').classList.add('hidden');
+  document.getElementById('next-btn').classList.add('hidden');
+
+  drawObject(current, document.getElementById('obj-canvas'));
+  document.getElementById('obj-desc').textContent = current.desc;
+
+  const wrongs = getWrongChoices(current);
+  const choices = [...wrongs, current].sort(()=>Math.random()-0.5);
+  document.getElementById('choices').innerHTML = choices.map(o=>`
+    <button onclick="answer('${o.id}')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 px-3 rounded-lg text-sm text-left" aria-label="${o.name}">
+      <span class="font-mono text-purple-300 text-xs mr-1">${o.id}</span> ${o.name}<br>
+      <span class="text-xs text-slate-400">${typeLabel(o.type)}</span>
+    </button>
+  `).join('');
+  total++;
+  document.getElementById('total-count').textContent = total;
+}
+
+function answer(id) {
+  if(answered) return;
+  answered = true;
+  const fb = document.getElementById('feedback');
+  if(id === current.id){
+    correct++;
+    fb.textContent='✅ 正解！';
+    fb.className='text-center text-sm font-semibold mb-2 text-green-400';
+    document.getElementById('correct-count').textContent=correct;
+  } else {
+    wrong++;
+    fb.textContent=`❌ 不正解。正解: ${current.name} (${current.id})`;
+    fb.className='text-center text-sm font-semibold mb-2 text-red-400';
+    document.getElementById('wrong-count').textContent=wrong;
+  }
+  // Show hint + detail card
+  document.getElementById('hint-area').textContent=`${current.const} ｜ 距離: ${current.dist.toLocaleString()}光年 ｜ 大きさ: ${current.size} ｜ 発見: ${current.finder}`;
+  const detail = document.getElementById('detail-card');
+  detail.innerHTML=`
+    <div><span class="text-purple-300 font-semibold">${current.id}</span> <span class="text-slate-100">${current.name}</span> <span class="text-slate-400">(${current.en})</span></div>
+    <div>${typeLabel(current.type)} ｜ ${current.const}</div>
+    <div class="text-slate-400">${current.desc}</div>
+  `;
+  detail.classList.remove('hidden');
+
+  // Highlight choices
+  document.querySelectorAll('#choices button').forEach(btn=>{
+    btn.disabled=true;
+    const btnId = btn.getAttribute('aria-label');
+    // match by name
+    if(btn.querySelector('span.font-mono')?.textContent.trim()===current.id){
+      btn.className='bg-green-700 text-white py-2 px-3 rounded-lg text-sm text-left';
+    } else if(btn.querySelector('span.font-mono')?.textContent.trim()===id && id!==current.id){
+      btn.className='bg-red-700 text-white py-2 px-3 rounded-lg text-sm text-left';
+    }
+  });
+  document.getElementById('next-btn').classList.remove('hidden');
+}
+
+nextQuestion();
+</script>
+</body>
+</html>
